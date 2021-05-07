@@ -3,8 +3,27 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+struct CallbackStruct
+{
+    GIFT::PointFeatureTracker featureTracker;
+    VIOFilter filter;
 
-void dataStream::record_cam(bool indoor_lighting)
+    void callbackImage(const Mat image);
+    void callbackImu(const IMUVelocity imuVel);
+
+};
+
+void CallbackStruct::callbackImu(const IMUVelocity imuVel)
+{
+
+}
+
+void CallbackStruct::callbackImage(const Mat image)
+{
+
+}
+
+Mat dataStream::record_cam(bool indoor_lighting)
 {
     // Initialize image capture module
     cv::VideoCapture *cap;
@@ -101,11 +120,14 @@ int main(int argc, char* argv[])
     safeConfig(eqf_vioConfig["GIFT"]["maxLevel"], featureTracker.maxLevel);
     
 
-    // mavlink related
+    // Mavlink related
 
 
 
-
+    // Filter processing
+    Mat image = dataStream::record_cam(true)
+    
+    
 
 
 
