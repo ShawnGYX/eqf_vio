@@ -23,6 +23,8 @@
 #include <thread>
 #include <exception>
 
+#include "all/mavlink.h"
+
 using namespace cv;
 using namespace std;
 
@@ -34,4 +36,4 @@ class dataStream{
 
         void record_cam(bool indoor_lighting)
 
-}
+};

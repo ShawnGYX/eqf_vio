@@ -23,7 +23,7 @@ void CallbackStruct::callbackImage(const Mat image)
 
 }
 
-Mat dataStream::record_cam(bool indoor_lighting)
+Mat dataStream::record_cam(bool indoor_lighting)
 {
     // Initialize image capture module
     cv::VideoCapture *cap;
@@ -126,6 +126,7 @@ int main(int argc, char* argv[])
 
     // Filter processing
     Mat image = dataStream::record_cam(true)
+    
     
     
 
