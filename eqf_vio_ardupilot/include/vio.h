@@ -25,6 +25,10 @@
 
 #include "all/mavlink.h"
 
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
+#endif
+
 using namespace cv;
 using namespace std;
 
