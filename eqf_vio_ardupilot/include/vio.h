@@ -34,6 +34,25 @@ class dataStream{
 
     private:
 
-        void record_cam(bool indoor_lighting)
+    // todo: update these params
+    const uint8_t system_id = 17;
+    const uint8_t component_id = 18;
+
+    const mavlink_channel_t mavlink_ch = (mavlink_channel_t)(MAVLINK_COMM_0+5);
+
+    Mat record_cam(bool indoor_lighting);
+
+    bool get_free_msg_buf_index(uint8_t &index);
+
+    struct
+    {
+        uint64_t time_send_us;
+        mavlink_message_t obs_msg;
+    } msg_buf[3];
+    
+
+
+    void maybe_send_heartbeat();
+    uint32_t last_heatbeat_ms;
 
 };
