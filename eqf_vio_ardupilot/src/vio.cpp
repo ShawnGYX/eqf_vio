@@ -61,6 +61,11 @@ bool dataStream::get_free_msg_buf_index(uint8_t &index)
     return false;
 }
 
+bool dataStream::should_send(TypeMask type_mask) const 
+{
+    return 1;
+}
+
 Mat dataStream::record_cam(bool indoor_lighting)
 {
     // Initialize image capture module
@@ -116,6 +121,109 @@ void dataStream::update_vp_estimate(const Location &loc,
                                     const Vector3f &velocity,
                                     const Quaternion &attitude)
 {
+    const uint32_t now_us = chrono::steady_clock::now().time_since_epoch().count();
+
+    // Calculate a random time offset to the time sent in the message
+    if (time_offset_us == 0)
+    {
+        time_offset_us = (unsigned(random()) % 7000) * 1000000ULL;
+        printf("time_off_us %llu\n", (long long unsigned)time_offset_us);
+    }
+
+    // send all messages in the buffer
+    bool waiting_to_send = false;
+    for (uint8_t i=0; i<ARRAY_SIZE(msg_buf); i++)
+    {
+        if ((msg_buf[i].time_send_us > 0) && (now_us >= msg_buf[i].time_send_us))
+        {
+            uint8_t buf[300];
+            uint16_t buf_len = mavlink_msg_to_send_buffer(buf, &msg_buf[i].obs_msg);
+            msg_buf[i].time_send_us = 0;
+
+        }
+        waiting_to_send = msg_buf[i].time_send_us != 0;
+
+    }
+    if (waiting_to_send) {
+        return;
+    }
+
+    if (now_us - last_observation_usec < 20000)
+    {
+        return;
+    }
+
+    float roll;
+    float pitch;
+    float yaw;
+    attitude.to_euler(roll, pitch, yaw);
+
+
+    // load estimates from the filter
+    Vector3f pos_corrected;
+
+
+
+
+    uint32_t delay_ms = 25 + unsigned(random()) % 100;
+    uint64_t time_send_us = now_us + delay_ms * 1000UL;
+    // send message
+    uint8_t msg_buf_index;
+    if (should_send(TypeMask::VISION_POSITION_ESTIMATE) && get_free_msg_buf_index(msg_buf_index))
+    {
+        mavlink_msg_vision_position_estimate_pack_chan(
+            system_id,
+            component_id,
+            mavlink_ch,
+            &msg_buf[msg_buf_index].obs_msg,
+            now_us + time_offset_us,
+            pos_corrected.x,
+            pos_corrected.y,
+            pos_corrected.z,
+            roll,
+            pitch,
+            yaw,
+            NULL, 0);
+        msg_buf[msg_buf_index].time_send_us = time_send_us;
+    }
+
+
+
+    if (should_send(TypeMask::VISION_SPEED_ESTIMATE) && get_free_msg_buf_index(msg_buf_index))
+    {
+        mavlink_msg_vision_speed_estimate_pack_chan(
+            system_id,
+            component_id,
+            mavlink_ch,
+            &msg_buf[msg_buf_index].obs_msg,
+            now_us + time_offset_us,
+            vel_corrected.x,
+            vel_corrected.y,
+            vel_corrected.z,
+            NULL, 0
+        );
+        msg_buf[msg_buf_index].time_send_us = time_send_us;
+    }
+
+    uint64_t time_delta = now_us - last_observation_usec;
+
+    Quaternion attitude_curr;
+
+    attitude_curr.from_euler(roll, pitch, yaw);
+
+    attitude_curr.invert();
+
+    Quaternion attitude_curr_prev = attitude_curr * _attitude_prev.inverse();
+
+    float angle_data[3] = {
+        attitude_curr_prev.get_euler_roll(),
+        attitude_curr_prev.get_euler_pitch(),
+        attitude_curr_prev.get_euler_yaw()};
+    
+    Matrix3f body_ned_m;
+    attitude_curr.rotation_matrix(body_ned_m);
+
+    
 
 }
 

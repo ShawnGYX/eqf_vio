@@ -4,7 +4,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 # Set off if you want to build the project in pure cmake
 
-
+include_directories(../libraries)   
 include(CMakeDependentOption)
 
 # Import external dependencies
@@ -45,7 +45,7 @@ endif()
 
 
 # Add libs
-add_subdirectory(libs)
+add_subdirectory(libraries)
 
 # Add the include files
 set(EQF_VIO_HEADER_FILES

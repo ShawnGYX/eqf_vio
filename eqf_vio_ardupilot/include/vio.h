@@ -25,6 +25,13 @@
 
 #include "all/all.h"
 
+#include "AP_Math/AP_Math.h"
+#include "AP_Common/Location.h"
+
+
+
+
+
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 #endif
@@ -49,6 +56,9 @@ class dataStream{
 
     bool get_free_msg_buf_index(uint8_t &index);
 
+    uint64_t last_observation_usec;
+    uint64_t time_offset_us;
+
     struct
     {
         uint64_t time_send_us;
@@ -56,8 +66,24 @@ class dataStream{
     } msg_buf[3];
     
 
+    enum class TypeMask: uint8_t {
+        VISION_POSITION_ESTIMATE   = (1 << 0),
+        VISION_SPEED_ESTIMATE      = (1 << 1),
+        VISION_POSITION_DELTA      = (1 << 2)
+    };
+
+    bool should_send(TypeMask type_mask) const;
+
+    void update_vp_estimate(const Location &loc,
+                            const Vector3f &position,
+                            const Vector3f &velocity,
+                            const Quaternion &attitude);
 
     void maybe_send_heartbeat();
     uint32_t last_heatbeat_ms;
+
+    Quaternion _attitude_prev;
+
+    Vector3f _position_prev;
 
 };
