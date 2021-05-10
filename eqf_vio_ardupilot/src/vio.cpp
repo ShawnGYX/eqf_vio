@@ -111,6 +111,15 @@ Mat dataStream::record_cam(bool indoor_lighting)
 }
 
 
+void dataStream::update_vp_estimate(const Location &loc,
+                                    const Vector3f &position,
+                                    const Vector3f &velocity,
+                                    const Quaternion &attitude)
+{
+
+}
+
+
 int main(int argc, char* argv[])
 {
     
