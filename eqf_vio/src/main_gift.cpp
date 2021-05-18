@@ -20,6 +20,7 @@
 #include "eqf_vio/VIOFilter.h"
 #include "eqf_vio/VIOFilterSettings.h"
 #include "eqf_vio/VisionMeasurement.h"
+#include "eqf_vio/GPSconverter.h"
 
 #include "GIFT/PointFeatureTracker.h"
 #include "GIFT/Visualisation.h"
@@ -42,6 +43,11 @@
 #endif
 
 IMUVelocity readIMUData(const CSVLine& row);
+GPSmeasurement readGPSData(const CSVLine& row);
+float lat2radius(double &lat);
+Eigen::Vector3d gps2xyz(Eigen::Vector3d &gps_origin, Eigen::Vector3d &gps);
+Eigen::VectorXd gps2output(Eigen::Vector3d &attitude, Eigen::Vector3d &position);
+Eigen::VectorXd processGPSData(GPSmeasurement &gpsdata);
 double readVideoStamp(const CSVLine& row);
 VisionMeasurement convertGIFTFeatures(const std::vector<GIFT::Feature>& GIFTFeatures, const double& stamp);
 
@@ -69,6 +75,13 @@ int main(int argc, char const* argv[]) {
     CSVReader IMUFileIter(IMUFile);
     ++IMUFileIter; // skip the header
     IMUVelocity imuData = readIMUData(*IMUFileIter);
+
+
+    // Read the GPS origin
+    GPSmeasurement GPSdata = readGPSData(*IMUFileIter);
+    Eigen::VectorXd GPSoutput;
+    gps_init = GPSdata.pos;
+
 
     if (!std::ifstream(VideoFileName).good()) {
         std::stringstream ess;
@@ -99,6 +112,7 @@ int main(int argc, char const* argv[]) {
     const double startTime = eqf_vioConfig["main"]["startTime"].as<double>();
     const bool writeStateFlag = eqf_vioConfig["main"]["writeState"].as<bool>();
     const bool writeFilterFlag = eqf_vioConfig["main"]["writeFilter"].as<bool>();
+    const bool outputGPS = eqf_vioConfig["main"]["outputGPS"].as<bool>();
 
     const bool showVisualisationFlag = eqf_vioConfig["main"]["showVisualisation"].as<bool>();
     if (showVisualisationFlag && !BUILD_VISUALISATION) {
@@ -142,9 +156,19 @@ int main(int argc, char const* argv[]) {
     internalFileNameStream << "EQF_VIO_internal_" << std::put_time(std::localtime(&t0), "%F_%T") << ".csv";
     std::ofstream internalFile, outputFile;
     if (writeStateFlag) {
-        outputFile = std::ofstream(outputFileNameStream.str());
-        outputFile << "time, tx, ty, tz, qw, qx, qy, qz, vx, vy, vz, N, "
-                   << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz" << std::endl;
+        if (outputGPS)
+        {
+            outputFile = std::ofstream(outputFileNameStream.str());
+            outputFile << "time, tx, ty, tz, qw, qx, qy, qz, vx, vy, vz, N, "
+                       << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz, " 
+                       << "G_tx, G_ty, G_tz, G_qw, G_qx, G_qy, G_qz" << std::endl;
+        }
+        else
+        {
+            outputFile = std::ofstream(outputFileNameStream.str());
+            outputFile << "time, tx, ty, tz, qw, qx, qy, qz, vx, vy, vz, N, "
+                       << "p1id, p1x, p1y, p1z, ..., ..., ..., ..., pNid, pNx, pNy, pNz" << std::endl;
+        }
     }
     if (writeFilterFlag) {
         internalFile = std::ofstream(internalFileNameStream.str());
@@ -165,6 +189,7 @@ int main(int argc, char const* argv[]) {
             // Pass IMU data to the filter
             if (imuData.stamp > startTime) {
                 filter.processIMUData(imuData);
+                GPSoutput = processGPSData(GPSdata);
                 ++imuDataCounter;
             }
 
@@ -173,6 +198,7 @@ int main(int argc, char const* argv[]) {
             if (IMUFileIter == CSVReader())
                 break;
             imuData = readIMUData(*IMUFileIter);
+            GPSdata = readGPSData(*IMUFileIter);
 
         } else {
             // Pass measurement data to the filter
@@ -192,7 +218,7 @@ int main(int argc, char const* argv[]) {
                 VIOState estimatedState = filter.stateEstimate();
                 if (writeStateFlag)
                     outputFile << std::setprecision(20) << filter.getTime() << std::setprecision(5) << ", "
-                               << estimatedState << std::endl;
+                               << estimatedState << GPSoutput << std::endl;
                 if (writeFilterFlag)
                     internalFile << std::setprecision(20) << filter.getTime() << std::setprecision(5) << ", " << filter
                                  << std::endl;
@@ -256,6 +282,66 @@ IMUVelocity readIMUData(const CSVLine& row) {
     imuData.accel << stod(row[4]), stod(row[5]), stod(row[6]);
     return imuData;
 }
+
+GPSmeasurement readGPSData(const CSVLine& row) {
+    GPSmeasurement GPSData;
+    if (row.size() < 14) {
+        throw std::length_error("Each line of data with GPS recording must contain at least 14 entries.");
+    }
+    GPSData.stamp = stod(row[0]);
+    GPSData.att << stod(row[8]), stod(row[9]), stod(row[10]);
+    GPSData.pos << stod(row[11]), stod(row[12]), stod(row[13]);
+
+    return GPSData;
+}
+
+Eigen::VectorXd processGPSData(GPSmeasurement &gpsdata) {
+    Eigen::Vector3d position = gps2xyz(gps_init,gpsdata.pos);
+    Eigen::VectorXd output = gps2output(gpsdata.att, position);
+
+    return output;
+}
+
+float lat2radius(double &lat)
+{
+    float c = cos(lat * M_PI / 180.0);
+    float s = sin(lat * M_PI / 180.0);
+
+    float radius = pow((pow(equatorial_radius,2) * c),2) + pow((pow(polar_radius,2) *s),2);
+    radius = radius / (pow(equatorial_radius*c,2) + pow(polar_radius*s,2));
+    radius = sqrt(radius);
+    
+    return radius;
+}
+
+
+Eigen::Vector3d gps2xyz(Eigen::Vector3d &gps_origin, Eigen::Vector3d &gps)
+{
+    float local_radius = lat2radius(gps_origin.x());
+
+    float nor = sin((gps.x() - gps_origin.x())*M_PI / 180.0) * local_radius;
+    float eas = sin((gps.y() - gps_origin.y())*M_PI / 180.0) * local_radius;
+    float down = gps_origin.y() - gps.y();
+
+    Eigen::Vector3d local_pos(nor, eas, down);
+
+    return local_pos;
+}
+
+Eigen::VectorXd gps2output(Eigen::Vector3d &attitude, Eigen::Vector3d &position)
+{
+    Eigen::Quaterniond q;
+    q = Eigen::AngleAxisd(attitude.x(), Eigen::Vector3d::UnitX())
+        * Eigen::AngleAxisd(attitude.y(), Eigen::Vector3d::UnitY())
+        * Eigen::AngleAxisd(attitude.z(), Eigen::Vector3d::UnitZ());
+    
+    Eigen::VectorXd gpsoutput;
+    std::cout << position << q.coeffs() << std::endl;
+    gpsoutput << position.x(), position.y(), position.z(), q.w(), q.x(), q.y(), q.z();
+
+    return gpsoutput;
+}
+
 
 double readVideoStamp(const CSVLine& row) { 
     if (row.size() < 1) {
