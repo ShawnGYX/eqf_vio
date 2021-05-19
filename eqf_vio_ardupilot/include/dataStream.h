@@ -54,7 +54,7 @@ class dataStream{
     VIOFilter filter;
 
     VIOState callbackImage(const cv::Mat image);
-    void callbackImu(const IMUVelocity imuVel);
+    void callbackImu(const mavlink_message_t &IMUmsg);
 
 
     private:

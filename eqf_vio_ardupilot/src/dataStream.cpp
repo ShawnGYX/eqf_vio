@@ -28,11 +28,36 @@ dataStream::~dataStream()
 
 
 // Callback function for IMU messages
-void dataStream::callbackImu(const IMUVelocity imuVel)
+void dataStream::callbackImu(const mavlink_message_t &IMUmsg)
 {
-    std::cout << "IMU Message Received." << std::endl;
+    mavlink_raw_imu_t* raw_imu;
+    IMUVelocity imuVel;
+    
+    float gyro_factor = 1e-3;
+    float acc_factor = 9.81 * 1e-3;
+    
+    const uint32_t now = std::chrono::steady_clock::now().time_since_epoch().count();
 
-    this->filter.processIMUData(imuVel);
+    switch (IMUmsg.msgid)
+    {
+    case MAVLINK_MSG_ID_RAW_IMU:
+        {
+            mavlink_msg_raw_imu_decode(&IMUmsg, &raw_imu)
+            std::cout << "IMU Message Received." << std::endl;
+            imuVel.stamp = now;
+            imuVel.accel << raw_imu->xacc * acc_factor,
+                            raw_imu->yacc * acc_factor, 
+                            raw_imu->zacc * acc_factor;
+            imuVel.omega << raw_imu->xgyro * gyro_factor,
+                            raw_imu->ygyro * gyro_factor,
+                            raw_imu->zgyro * gyro_factor;
+            
+            this->filter.processIMUData(imuVel);
+        }
+        break;  
+    default:
+        break;
+    }
     
 }
 
@@ -94,7 +119,7 @@ void dataStream::recv_thread()
                                   MAVLINK_MSG_ID_RAW_IMU,
                                   1e6 / 200,
                                   0, 0, 0, 0);
-    
+
     
 
 }
@@ -278,6 +303,7 @@ void dataStream::update_vp_estimate(const VIOState estimatedState)
     Matrix3f body_ned_m;
     attitude_curr.rotation_matrix(body_ned_m);
 
+    
     
 
 }

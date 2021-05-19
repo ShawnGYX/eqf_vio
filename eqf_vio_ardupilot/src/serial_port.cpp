@@ -107,6 +107,64 @@ int Serial_Port::_open_port(const char* port)
     return fd;
 }
 
+
+int Serial_Port::read_message(mavlink_message_t &message)
+{
+    uint8_t &cp;
+    mavlink_status_t status;
+    uint8_t msgReceived = false;
+
+    int result = _read_port(cp);
+
+    if (result > 0)
+    {
+        msgReceived = mavlink_parse_char(MAVLINK_COMM_1, CP, &message, &status);
+        
+    }
+    // Couldn't read from port
+	else
+	{
+		fprintf(stderr, "ERROR: Could not read from fd %d\n", fd);
+	}
+
+	// --------------------------------------------------------------------------
+	//   DEBUGGING REPORTS
+	// --------------------------------------------------------------------------
+	if(msgReceived && debug)
+	{
+		// Report info
+		printf("Received message from serial with ID #%d (sys:%d|comp:%d):\n", message.msgid, message.sysid, message.compid);
+
+		fprintf(stderr,"Received serial data: ");
+		unsigned int i;
+		uint8_t buffer[MAVLINK_MAX_PACKET_LEN];
+
+		// check message is write length
+		unsigned int messageLength = mavlink_msg_to_send_buffer(buffer, &message);
+
+		// message length error
+		if (messageLength > MAVLINK_MAX_PACKET_LEN)
+		{
+			fprintf(stderr, "\nFATAL ERROR: MESSAGE LENGTH IS LARGER THAN BUFFER SIZE\n");
+		}
+
+		// print out the buffer
+		else
+		{
+			for (i=0; i<messageLength; i++)
+			{
+				unsigned char v=buffer[i];
+				fprintf(stderr,"%02x ", v);
+			}
+			fprintf(stderr,"\n");
+		}
+	}
+
+	// Done!
+	return msgReceived;
+}
+
+
 bool Serial_Port::_setup_port(int baud, int data_bits, int stop_bits, bool parity, bool hardware_control)
 {
 	// Check file descriptor
