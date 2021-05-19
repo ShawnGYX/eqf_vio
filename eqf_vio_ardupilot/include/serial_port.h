@@ -55,6 +55,8 @@ class Serial_Port
         int baudrate;
         int status;
 
+        bool is_open;
+
         int read_message(mavlink_message_t &message);
         int write_message(const mavlink_message_t &message);
 

@@ -57,6 +57,8 @@ VIOState dataStream::callbackImage(const cv::Mat image)
     return estimatedState;
 }
 
+
+
 // Start the IMU receiver and Camera capture threads
 void dataStream::startThreads()
 {
@@ -86,6 +88,14 @@ void dataStream::stopThreads()
 // Request IMU messages from ArduPilot
 void dataStream::recv_thread()
 {
+    mavlink_msg_command_long_send(mavlink_ch,
+                                  MAV_CMD_SET_MESSAGE_INTERVAL,
+                                  0,
+                                  MAVLINK_MSG_ID_RAW_IMU,
+                                  1e6 / 200,
+                                  0, 0, 0, 0);
+    
+    
 
 }
 
@@ -109,12 +119,12 @@ void dataStream::maybe_send_heartbeat()
     // Get a timestamp
     const uint32_t now = std::chrono::steady_clock::now().time_since_epoch().count();
 
-    if (now - last_heatbeat_ms < 100)
+    if (now - last_heartbeat_ms < 100)
     {
         return;
     }
 
-    last_heatbeat_ms = now;
+    last_heartbeat_ms = now;
 
     mavlink_message_t msg;
     mavlink_msg_heartbeat_pack( system_id,
@@ -393,3 +403,4 @@ VisionMeasurement convertGIFTFeatures(const std::vector<GIFT::Feature>& GIFTFeat
     });
     return measurement;
 }
+

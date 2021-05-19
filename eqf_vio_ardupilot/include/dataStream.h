@@ -25,6 +25,7 @@
 #include <exception>
 
 #include "all/all.h"
+#include "GCS_MAVLink/GCS.h"
 
 #include "AP_Math/AP_Math.h"
 #include "AP_Common/Location.h"
@@ -98,7 +99,7 @@ class dataStream{
     //                         const Quaternion &attitude);
 
     void maybe_send_heartbeat();
-    uint32_t last_heatbeat_ms;
+    uint32_t last_heartbeat_ms;
 
     Quaternion _attitude_prev;
 
